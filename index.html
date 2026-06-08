@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>扫雷</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1720;
+      --panel: #15212d;
+      --panel-2: #1b2a37;
+      --line: #304353;
+      --text: #e8f1f8;
+      --muted: #98a9b8;
+      --accent: #55c2ff;
+      --accent-2: #7ee081;
+      --danger: #ff6b6b;
+      --warn: #ffd36b;
+      --cell: #203140;
+      --cell-hover: #264052;
+      --cell-open: #eaf1f7;
+      --cell-open-text: #203040;
+      --shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(1000px 700px at 15% 10%, rgba(85, 194, 255, 0.12), transparent 60%),
+        radial-gradient(900px 600px at 90% 20%, rgba(126, 224, 129, 0.10), transparent 60%),
+        var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      width: min(1200px, calc(100vw - 24px));
+      margin: 12px auto;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
+    }
+
+    .topbar, .statusbar {
+      background: rgba(21, 33, 45, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .topbar {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, rgba(85,194,255,.18), rgba(126,224,129,.18));
+      border: 1px solid rgba(255,255,255,.08);
+      font-size: 24px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.1;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    button, select {
+      font: inherit;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    button:hover, select:hover { background: #203544; }
+    button:active { transform: translateY(1px); }
+    button.primary {
+      background: linear-gradient(135deg, #2d6f92, #23607e);
+      border-color: rgba(85,194,255,.4);
+    }
+    button.primary:hover { filter: brightness(1.05); }
+
+    .statusbar {
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stat {
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 8px;
+      padding: 10px 12px;
+      min-width: 0;
+    }
+    .stat label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .stat strong {
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .board-wrap {
+      background: rgba(21, 33, 45, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      overflow: auto;
+      min-height: 60vh;
+    }
+
+    .board {
+      display: grid;
+      gap: 2px;
+      width: fit-content;
+      margin: 0 auto;
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    .cell {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 5px;
+      background: linear-gradient(180deg, #253a4b, #1c2b38);
+      color: transparent;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 16px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    .cell:hover { background: linear-gradient(180deg, #2c4559, #223544); }
+    .cell.revealed {
+      background: linear-gradient(180deg, #f6fbff, #e2ebf3);
+      color: var(--cell-open-text);
+      border: 1px solid rgba(20,30,40,.08);
+      box-shadow: none;
+    }
+    .cell.flagged { color: var(--warn); }
+    .cell.mine.revealed { background: linear-gradient(180deg, #ffdfdf, #ffc4c4); color: #8e1111; }
+    .cell.bad { background: linear-gradient(180deg, #ff8181, #ff5b5b); color: white; }
+    .cell[data-n="1"] { color: #2463eb; }
+    .cell[data-n="2"] { color: #18864b; }
+    .cell[data-n="3"] { color: #c2410c; }
+    .cell[data-n="4"] { color: #7c3aed; }
+    .cell[data-n="5"] { color: #b91c1c; }
+    .cell[data-n="6"] { color: #0891b2; }
+    .cell[data-n="7"] { color: #111827; }
+    .cell[data-n="8"] { color: #6b7280; }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    @media (max-width: 900px) {
+      .topbar, .statusbar {
+        grid-template-columns: 1fr;
+      }
+      .controls { justify-content: flex-start; }
+      .statusbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cell { width: 28px; height: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="brand">
+        <div class="badge">💣</div>
+        <div>
+          <h1>扫雷</h1>
+          <div class="sub">左键翻开，右键插旗，双击数字可快速清周围。</div>
+        </div>
+      </div>
+      <div class="controls">
+        <select id="preset" aria-label="难度">
+          <option value="beginner">初级 9 x 9 / 10 雷</option>
+          <option value="intermediate">中级 16 x 16 / 40 雷</option>
+          <option value="expert">高级 16 x 30 / 99 雷</option>
+        </select>
+        <button id="newGame" class="primary">新开一局</button>
+      </div>
+    </div>
+
+    <div class="statusbar">
+      <div class="stat"><label>剩余雷数</label><strong id="minesLeft">0</strong></div>
+      <div class="stat"><label>计时</label><strong id="timer">0</strong></div>
+      <div class="stat"><label>状态</label><strong id="state">准备中</strong></div>
+      <div class="stat"><label>难度</label><strong id="modeName">初级</strong></div>
+      <div class="stat"><label>最佳时间</label><strong id="best">-</strong></div>
+    </div>
+
+    <div class="main">
+      <div class="board-wrap">
+        <div id="board" class="board" aria-label="扫雷棋盘"></div>
+        <div class="hint">提示：第一次点击永远不会踩雷。手机上可直接点按操作。</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const presets = {
+      beginner: { rows: 9, cols: 9, mines: 10, name: '初级' },
+      intermediate: { rows: 16, cols: 16, mines: 40, name: '中级' },
+      expert: { rows: 16, cols: 30, mines: 99, name: '高级' }
+    };
+
+    const els = {
+      board: document.getElementById('board'),
+      preset: document.getElementById('preset'),
+      newGame: document.getElementById('newGame'),
+      minesLeft: document.getElementById('minesLeft'),
+      timer: document.getElementById('timer'),
+      state: document.getElementById('state'),
+      modeName: document.getElementById('modeName'),
+      best: document.getElementById('best')
+    };
+
+    const bestKey = 'minesweeper-best-moves';
+    let rows, cols, mines, board, revealed, flagged, mineSet, started, ended, timerId, elapsed, firstMove, moves, lastHit;
+
+    function randInt(n) { return Math.floor(Math.random() * n); }
+
+    function loadBest() {
+      const v = localStorage.getItem(bestKey);
+      els.best.textContent = v ? v : '-';
+    }
+
+    function setStatus(text) {
+      els.state.textContent = text;
+    }
+
+    function updateStats() {
+      els.minesLeft.textContent = Math.max(0, mines - flagged.size);
+      els.timer.textContent = elapsed;
+      els.modeName.textContent = presets[els.preset.value].name;
+    }
+
+    function stopTimer() {
+      if (timerId) clearInterval(timerId);
+      timerId = null;
+    }
+
+    function startTimer() {
+      if (timerId) return;
+      timerId = setInterval(() => {
+        elapsed += 1;
+        els.timer.textContent = elapsed;
+      }, 1000);
+    }
+
+    function inBounds(r, c) {
+      return r >= 0 && r < rows && c >= 0 && c < cols;
+    }
+
+    function idx(r, c) { return r * cols + c; }
+
+    function neighbors(r, c) {
+      const out = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (!dr && !dc) continue;
+          const nr = r + dr, nc = c + dc;
+          if (inBounds(nr, nc)) out.push([nr, nc]);
+        }
+      }
+      return out;
+    }
+
+    function buildBoard() {
+      board = Array.from({ length: rows }, () => Array(cols).fill(0));
+      revealed = new Set();
+      flagged = new Set();
+      mineSet = new Set();
+      started = false;
+      ended = false;
+      firstMove = true;
+      moves = 0;
+      lastHit = null;
+      elapsed = 0;
+      stopTimer();
+      els.timer.textContent = '0';
+      setStatus('准备中');
+      updateStats();
+      renderBoard();
+    }
+
+    function placeMines(safeR, safeC) {
+      const banned = new Set([idx(safeR, safeC)]);
+      for (const [r, c] of neighbors(safeR, safeC)) banned.add(idx(r, c));
+      while (mineSet.size < mines) {
+        const r = randInt(rows);
+        const c = randInt(cols);
+        const k = idx(r, c);
+        if (banned.has(k) || mineSet.has(k)) continue;
+        mineSet.add(k);
+      }
+      for (const k of mineSet) {
+        const r = Math.floor(k / cols);
+        const c = k % cols;
+        board[r][c] = -1;
+        for (const [nr, nc] of neighbors(r, c)) {
+          if (board[nr][nc] !== -1) board[nr][nc] += 1;
+        }
+      }
+    }
+
+    function renderBoard() {
+      els.board.innerHTML = '';
+      els.board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      els.board.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cell = document.createElement('button');
+          cell.className = 'cell';
+          cell.type = 'button';
+          cell.dataset.r = r;
+          cell.dataset.c = c;
+          cell.setAttribute('aria-label', `第 ${r + 1} 行第 ${c + 1} 列`);
+          cell.addEventListener('click', onReveal);
+          cell.addEventListener('contextmenu', onFlag);
+          cell.addEventListener('dblclick', onChord);
+          cell.addEventListener('auxclick', e => {
+            if (e.button === 1) {
+              e.preventDefault();
+              onChord(e);
+            }
+          });
+          els.board.appendChild(cell);
+        }
+      }
+      refreshCells();
+    }
+
+    function refreshCells() {
+      for (const el of els.board.children) {
+        const r = +el.dataset.r;
+        const c = +el.dataset.c;
+        const key = idx(r, c);
+        el.className = 'cell';
+        el.textContent = '';
+        el.removeAttribute('data-n');
+        if (revealed.has(key)) {
+          el.classList.add('revealed');
+          if (board[r][c] === -1) {
+            el.classList.add('mine');
+            el.textContent = '💣';
+          } else if (board[r][c] > 0) {
+            el.textContent = board[r][c];
+            el.dataset.n = String(board[r][c]);
+          }
+        } else if (flagged.has(key)) {
+          el.classList.add('flagged');
+          el.textContent = '🚩';
+        }
+      }
+      if (ended && [...mineSet].length) {
+        for (const k of mineSet) {
+          if (!revealed.has(k)) {
+            const r = Math.floor(k / cols);
+            const c = k % cols;
+            const el = els.board.children[idx(r, c)];
+            el.classList.add('revealed', 'mine');
+            el.textContent = '💣';
+            if (k === lastHit) el.classList.add('bad');
+          }
+        }
+      }
+    }
+
+    function floodReveal(startR, startC) {
+      const stack = [[startR, startC]];
+      while (stack.length) {
+        const [r, c] = stack.pop();
+        const k = idx(r, c);
+        if (revealed.has(k) || flagged.has(k)) continue;
+        revealed.add(k);
+        if (board[r][c] === 0) {
+          for (const [nr, nc] of neighbors(r, c)) {
+            const nk = idx(nr, nc);
+            if (!revealed.has(nk) && !flagged.has(nk) && board[nr][nc] !== -1) {
+              stack.push([nr, nc]);
+            }
+          }
+        }
+      }
+    }
+
+    function winCheck() {
+      return revealed.size === rows * cols - mines;
+    }
+
+    function revealMineExplosion(r, c) {
+      ended = true;
+      lastHit = idx(r, c);
+      stopTimer();
+      setStatus('失败');
+      const clicked = idx(r, c);
+      for (const k of mineSet) {
+        const rr = Math.floor(k / cols);
+        const cc = k % cols;
+        const el = els.board.children[idx(rr, cc)];
+        el.classList.add('revealed', 'mine');
+        el.textContent = '💣';
+      }
+      const clickedEl = els.board.children[clicked];
+      clickedEl.classList.add('bad');
+      clickedEl.textContent = '💥';
+      refreshCells();
+    }
+
+    function maybeRecordBest() {
+      const current = elapsed;
+      const prev = Number(localStorage.getItem(bestKey) || 0);
+      if (!prev || current < prev) {
+        localStorage.setItem(bestKey, String(current));
+        els.best.textContent = String(current);
+      }
+    }
+
+    function completeGame() {
+      ended = true;
+      stopTimer();
+      setStatus('通关');
+      maybeRecordBest();
+      refreshCells();
+    }
+
+    function onReveal(e) {
+      const cell = e.currentTarget;
+      const r = +cell.dataset.r;
+      const c = +cell.dataset.c;
+      const k = idx(r, c);
+      if (ended || flagged.has(k)) return;
+      if (!started) {
+        started = true;
+        firstMove = false;
+        placeMines(r, c);
+        startTimer();
+        setStatus('进行中');
+      }
+      moves += 1;
+      if (board[r][c] === -1) {
+        revealMineExplosion(r, c);
+        return;
+      }
+      floodReveal(r, c);
+      if (winCheck()) {
+        completeGame();
+      }
+      refreshCells();
+      updateStats();
+    }
+
+    function onFlag(e) {
+      e.preventDefault();
+      const cell = e.currentTarget;
+      const r = +cell.dataset.r;
+      const c = +cell.dataset.c;
+      const k = idx(r, c);
+      if (ended || revealed.has(k)) return;
+      if (flagged.has(k)) flagged.delete(k);
+      else flagged.add(k);
+      moves += 1;
+      refreshCells();
+      updateStats();
+      if (winCheck()) completeGame();
+    }
+
+    function onChord(e) {
+      e.preventDefault();
+      const cell = e.currentTarget;
+      const r = +cell.dataset.r;
+      const c = +cell.dataset.c;
+      const k = idx(r, c);
+      if (ended || !revealed.has(k) || board[r][c] <= 0) return;
+      let f = 0;
+      for (const [nr, nc] of neighbors(r, c)) if (flagged.has(idx(nr, nc))) f += 1;
+      if (f !== board[r][c]) return;
+      for (const [nr, nc] of neighbors(r, c)) {
+        const nk = idx(nr, nc);
+        if (!revealed.has(nk) && !flagged.has(nk)) onReveal({ currentTarget: els.board.children[nk] });
+      }
+    }
+
+    function newGame() {
+      const p = presets[els.preset.value];
+      rows = p.rows;
+      cols = p.cols;
+      mines = p.mines;
+      buildBoard();
+      updateStats();
+    }
+
+    els.newGame.addEventListener('click', newGame);
+    els.preset.addEventListener('change', newGame);
+    window.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'r') newGame();
+    });
+
+    loadBest();
+    newGame();
+  </script>
+</body>
+</html>
